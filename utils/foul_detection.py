@@ -64,69 +64,58 @@ def run_inference(model, video_tensor):
     offense_scores = softmax(pred_offense)
     action_scores = softmax(pred_action)
 
-    offense_values, offense_indices = torch.topk(offense_scores, 2)
-    action_values, action_indices = torch.topk(action_scores, 2)
+    offense_values, offense_indices = torch.topk(offense_scores, 1)
+    action_values, action_indices = torch.topk(action_scores, 1)
 
-    offense_results = [
-        f"{INVERSE_EVENT_DICTIONARY_offence_severity_class[idx.item()]}: {val.item():.2f}"
-        for val, idx in zip(offense_values[0], offense_indices[0])
-    ]
+    result = {
+        "offense_label": INVERSE_EVENT_DICTIONARY_offence_severity_class[offense_indices[0][0].item()],
+        "offense_confidence": float(offense_values[0][0].item()),
+        "action_label": INVERSE_EVENT_DICTIONARY_action_class[action_indices[0][0].item()],
+        "action_confidence": float(action_values[0][0].item())
+    }
 
-    action_results = [
-        f"{INVERSE_EVENT_DICTIONARY_action_class[idx.item()]}: {val.item():.2f}"
-        for val, idx in zip(action_values[0], action_indices[0])
-    ]
-
-    offense_confidence = [val.item() for val in offense_values.squeeze()]
-    action_confidence = [val.item() for val in action_values.squeeze()]
-
-    return offense_results, action_results, offense_confidence[0], action_confidence[0]
+    return result
 
 
-
-def detect_foul(video_path: str, output_path: str) -> List[Tuple[int, int]]:
+def detect_foul(video_path: str, stride = 5):
     """
-    Detect fouls in a video clip and save the results to a new video file.
+    Detect fouls from a video clip.
     
     Args:
         video_path (str): Path to the video file
-        output_path (str): Path to save the output video file
     """
     model = load_model()
     duration = get_clip_duration(video_path)
     segment = []
 
-    for start_time in range(650, duration, 10):
+    for start_time in range(650, duration, stride):
         end_time = min(start_time + 30, duration)
         video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
         
         processed_video = preprocess_video(video)
-
-        offense_results, action_results, offense_confidence, action_confidence = run_inference(model, processed_video)
-
-        if offense_confidence >= 0.5 and action_confidence >= 0.5:
-            segment.append((start_time, end_time))
+        result = run_inference(model, processed_video)
+        if result["offense_confidence"] >= 0.5 and result["action_confidence"] >= 0.5:
+            segment.append(result)
 
     return segment
 
-def write_foul_clips(video_path: str, start_end_times: List[Tuple[int, int]], output_path: str):
-    """
-    Write video clips containing fouls to a new video file.
+# def write_foul_clips(video_path: str, start_end_times: List[Tuple[int, int]], output_path: str):
+#     """
+#     Write video clips containing fouls to a new video file.
     
-    Args:
-        video_path (str): Path to the video file
-        output_path (str): Path to save the output video file
-    """
+#     Args:
+#         video_path (str): Path to the video file
+#         output_path (str): Path to save the output video file
+#     """
 
-    model = load_model()
-    duration = get_clip_duration(video_path)
+#     model = load_model()
+#     duration = get_clip_duration(video_path)
 
-    for start_time, end_time in start_end_times:
-        video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
+#     for start_time, end_time in start_end_times:
+#         video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
         
-        write_video(os.path.join(output_path, f"clip_{start_time}_{end_time}.mp4"), video_array=video, fps=30, video_codec="h264", audio_array=audio, audio_fps=44100, audio_codec="mp3")
+#         write_video(os.path.join(output_path, f"clip_{start_time}_{end_time}.mp4"), video_array=video, fps=30, video_codec="h264", audio_array=audio, audio_fps=44100, audio_codec="mp3")
 
-    
 
 
 # Main function
