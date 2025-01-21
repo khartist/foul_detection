@@ -1,0 +1,160 @@
+# Standard library imports
+import os
+from typing import List, Tuple
+
+# Third-party imports
+import torch
+import torch.nn as nn
+from torchvision.io.video import read_video, write_video
+from torchvision.models.video import MViT_V2_S_Weights
+
+# Local imports
+from vars_model.config.classes import (
+    INVERSE_EVENT_DICTIONARY_action_class,
+    INVERSE_EVENT_DICTIONARY_offence_severity_class
+)
+from vars_model.model import MVNetwork
+from video_processing import get_clip_duration, preprocess_video
+
+
+def load_model():
+    """
+    Loads a pre-trained model for foul detection.
+
+    This function initializes an MVNetwork model with specified parameters,
+    loads the model's state from a file, and sets the model to evaluation mode.
+
+    Returns:
+        model (MVNetwork): The loaded and initialized model ready for inference.
+    """
+    print("Loading model...")
+    model = MVNetwork(net_name="mvit_v2_s", agr_type="attention")
+    model_path = os.path.join(os.getcwd(), 'vars_model', '14_model.pth.tar').replace('\\', '/')
+    state = torch.load(model_path, map_location=torch.device('cpu'))
+    model.load_state_dict(state['state_dict'])
+    model.eval()
+    print("Model loaded successfully.")
+    return model
+
+# Run inference on a video
+def run_inference(model, video_tensor):
+    """
+    Run inference on a given video tensor using the provided model.
+
+    Args:
+        model (torch.nn.Module): The trained model to use for inference.
+        video_tensor (torch.Tensor): The input video tensor for which to run inference.
+
+    Returns:
+        tuple: A tuple containing:
+            - offense_results (list of str): List of top 2 offense severity class predictions with their confidence scores.
+            - action_results (list of str): List of top 2 action class predictions with their confidence scores.
+            - offense_confidence (float): Confidence score of the top offense severity class prediction.
+            - action_confidence (float): Confidence score of the top action class prediction.
+    """
+    # print("Running inference...")
+    softmax = nn.Softmax(dim=1)
+
+    videos = video_tensor.unsqueeze(0)  # Add batch dimension
+    predictions = model(videos)
+
+    pred_offense = predictions[0].unsqueeze(0)
+    pred_action = predictions[1].unsqueeze(0)
+
+    offense_scores = softmax(pred_offense)
+    action_scores = softmax(pred_action)
+
+    offense_values, offense_indices = torch.topk(offense_scores, 2)
+    action_values, action_indices = torch.topk(action_scores, 2)
+
+    offense_results = [
+        f"{INVERSE_EVENT_DICTIONARY_offence_severity_class[idx.item()]}: {val.item():.2f}"
+        for val, idx in zip(offense_values[0], offense_indices[0])
+    ]
+
+    action_results = [
+        f"{INVERSE_EVENT_DICTIONARY_action_class[idx.item()]}: {val.item():.2f}"
+        for val, idx in zip(action_values[0], action_indices[0])
+    ]
+
+    offense_confidence = [val.item() for val in offense_values.squeeze()]
+    action_confidence = [val.item() for val in action_values.squeeze()]
+
+    return offense_results, action_results, offense_confidence[0], action_confidence[0]
+
+
+
+def detect_foul(video_path: str, output_path: str) -> List[Tuple[int, int]]:
+    """
+    Detect fouls in a video clip and save the results to a new video file.
+    
+    Args:
+        video_path (str): Path to the video file
+        output_path (str): Path to save the output video file
+    """
+    model = load_model()
+    duration = get_clip_duration(video_path)
+    segment = []
+
+    for start_time in range(650, duration, 10):
+        end_time = min(start_time + 30, duration)
+        video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
+        
+        processed_video = preprocess_video(video)
+
+        offense_results, action_results, offense_confidence, action_confidence = run_inference(model, processed_video)
+
+        if offense_confidence >= 0.5 and action_confidence >= 0.5:
+            segment.append((start_time, end_time))
+
+    return segment
+
+def write_foul_clips(video_path: str, start_end_times: List[Tuple[int, int]], output_path: str):
+    """
+    Write video clips containing fouls to a new video file.
+    
+    Args:
+        video_path (str): Path to the video file
+        output_path (str): Path to save the output video file
+    """
+
+    model = load_model()
+    duration = get_clip_duration(video_path)
+
+    for start_time, end_time in start_end_times:
+        video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
+        
+        write_video(os.path.join(output_path, f"clip_{start_time}_{end_time}.mp4"), video_array=video, fps=30, video_codec="h264", audio_array=audio, audio_fps=44100, audio_codec="mp3")
+
+    
+
+
+# Main function
+# def main():
+#     model = load_model()
+
+
+#     for start_time in range(650, duration, 10):
+#         end_time = min(start_time + 30, duration)
+#         video, audio, _ = read_video(base_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
+
+#         print(f"Processing clip from {start_time} to {end_time}")
+
+#         processed_video = preprocess_video(video)
+
+#         offense_results, action_results, offense_confidence, action_confidence = run_inference(model, processed_video)
+
+#         print("\nInference Results:")
+#         print("\nOffense Predictions:")
+#         for result in offense_results:
+#             print(f"  - {result}")
+#         print("\nAction Predictions:")
+#         for result in action_results:
+#             print(f"  - {result}")
+
+    
+#         if offense_confidence >= 0.5 and action_confidence >= 0.5:
+#             write_video(os.path.join(output_path, f"clip_{start_time}_{end_time}.mp4"), video_array=video, fps=30, video_codec="h264", audio_array=audio, audio_fps=44100, audio_codec="mp3")
+
+
+
