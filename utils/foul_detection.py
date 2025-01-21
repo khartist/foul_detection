@@ -46,9 +46,9 @@ def run_inference(model, video_tensor):
         video_tensor (torch.Tensor): The input video tensor for which to run inference.
 
     Returns:
-        tuple: A tuple containing:
-            - offense_results (list of str): List of top 2 offense severity class predictions with their confidence scores.
-            - action_results (list of str): List of top 2 action class predictions with their confidence scores.
+        dictionary: A dictionary containing:
+            - offense_results (str): List of top 1 offense severity class prediction with its confidence scores.
+            - action_results (str): List of top 1 action class prediction with its confidence scores.
             - offense_confidence (float): Confidence score of the top offense severity class prediction.
             - action_confidence (float): Confidence score of the top action class prediction.
     """
@@ -82,7 +82,11 @@ def detect_foul(video_path: str, stride = 5):
     Detect fouls from a video clip.
     
     Args:
-        video_path (str): Path to the video file
+        video_path (str): Path to the video file.
+        stride (int, optional): The interval in seconds at which to sample the video. Defaults to 5.
+    Returns:
+        list: A list of segments where fouls are detected. 
+        Each segment is a dictionary containing the detection results.
     """
     model = load_model()
     duration = get_clip_duration(video_path)
