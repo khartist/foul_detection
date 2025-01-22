@@ -92,7 +92,7 @@ def detect_foul(video_path: str, stride = 5):
     duration = get_clip_duration(video_path)
     segment = []
 
-    for start_time in range(650, duration, stride):
+    for start_time in range(1, duration, stride):
         end_time = min(start_time + 30, duration)
         video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
         
