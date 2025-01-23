@@ -77,7 +77,7 @@ def run_inference(model, video_tensor):
     return result
 
 
-def detect_foul(video_path: str, stride = 5):
+def detect_foul(video_path: str, stride = 5, video_duration = 1):
     """
     Detect fouls from a video clip.
     
@@ -93,7 +93,7 @@ def detect_foul(video_path: str, stride = 5):
     segment = []
 
     for start_time in range(1, duration, stride):
-        end_time = min(start_time + 30, duration)
+        end_time = min(start_time + video_duration, duration)
         video, audio, _ = read_video(video_path, start_pts=start_time, end_pts=end_time, pts_unit="sec")
         
         processed_video = preprocess_video(video)
