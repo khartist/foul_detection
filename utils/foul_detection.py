@@ -84,6 +84,7 @@ def detect_foul(video_path: str, stride = 5, video_duration = 1):
     Args:
         video_path (str): Path to the video file.
         stride (int, optional): The interval in seconds at which to sample the video. Defaults to 5.
+        video_duration (int, optional): The duration of each video clip in seconds. Defaults to 1.
     Returns:
         list: A list of segments where fouls are detected. 
         Each segment is a dictionary containing the detection results.
