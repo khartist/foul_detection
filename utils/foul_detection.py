@@ -98,10 +98,20 @@ def detect_foul(video_path: str, stride = 5, video_duration = 1):
         
         processed_video = preprocess_video(video)
         result = run_inference(model, processed_video)
-        if result["offense_confidence"] >= 0.5 and result["action_confidence"] >= 0.5:
-            segment.append(result)
+        segment.append(result)
 
     return segment
+
+def select_high_confidence_segments(segments: List[dict], threshold: float = 0.5):
+    """
+    Select segments with high confidence scores for both offense severity and action class predictions
+    """
+    high_confidence_segments = []
+    for segment in segments:
+        if segment["offense_confidence"] >= threshold and segment["action_confidence"] >= threshold:
+            high_confidence_segments.append(segment)
+
+    return high_confidence_segments
 
 # def write_foul_clips(video_path: str, start_end_times: List[Tuple[int, int]], output_path: str):
 #     """
